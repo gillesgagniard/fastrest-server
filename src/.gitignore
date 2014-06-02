@@ -1,0 +1,7 @@
+/*.lo
+/*.o
+/libfastrest_server.la
+/Makefile
+/Makefile.in
+/.deps/
+/.libs/

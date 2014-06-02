@@ -1,0 +1,38 @@
+fastREST Server
+===============
+
+Dependencies
+------------
+
+* autotools and libtool
+* Various Boost Libraries
+
+Build instructions
+------------------
+
+    autoreconf -i -f
+    ./configure
+    make
+    make install
+
+External components
+-------------------
+
+fastREST internally uses the following components :
+
+boost.m4
+https://github.com/etiam/boost.m4
+
+rapidjson 0.11
+https://code.google.com/p/rapidjson/
+
+Contact
+-------
+
+*email* : gilles _at_ gagniard.org
+
+License
+-------
+
+fastREST is distributed under version 3 of the GNU General Public License.
+Please see COPYING for more details.
