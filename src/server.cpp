@@ -13,8 +13,9 @@
 #include <boost/thread/thread.hpp>
 
 #include "logutils.hpp"
-#include "http_server.hpp"
+#include "http.hpp"
 #include "threadpool.hpp"
+#include "dispatcher.hpp"
 
 namespace fastrest
 {
@@ -23,9 +24,13 @@ namespace fastrest
   }
 
   server::server(unsigned int port, unsigned int num_workers) :
-      _port(port), _num_workers(num_workers)
+      _port(port), _num_workers(num_workers), _dispatcher(new dispatcher)
   {
     init();
+  }
+
+  server::~server()
+  {
   }
 
   unsigned int server::default_num_workers()
@@ -49,7 +54,12 @@ namespace fastrest
     namespace io = boost::asio;
     io::io_service io_service;
     io::ip::tcp::endpoint endpoint(io::ip::tcp::v4(), _port);
-    fastrest::http_server s(io_service, endpoint, tpool);
+    http_server s(io_service, endpoint, tpool, *_dispatcher);
     io_service.run();
+  }
+
+  void server::add(const std::string& uri, controller::create_controller_t controller_creator)
+  {
+    _dispatcher->add(uri, controller_creator);
   }
 }

@@ -1,5 +1,5 @@
 /* 
- * File:   http_server.hpp
+ * File:   http.hpp
  * Author: gilles
  *
  * Created on 9 mars 2014, 23:40
@@ -12,6 +12,7 @@
 #include <utility>
 #include <memory>
 #include <sstream>
+#include "dispatcher.hpp"
 
 #define HTTP_CODE_OK 200
 #define HTTP_REASON_OK "OK"
@@ -25,14 +26,18 @@
 #define HTTP_CODE_LENGTH_REQUIRED 411
 #define HTTP_REASON_LENGTH_REQUIRED "Length Required"
 
+#define HTTP_DELIMITER "\r\n"
 #define HTTP_HEADER_END "\r\n\r\n"
 #define HTTP_VERSION_10 "HTTP/1.0"
 #define HTTP_VERSION_11 "HTTP/1.1"
 #define HTTP_HEADER_CONTENT_TYPE "Content-Type"
 #define HTTP_HEADER_CONTENT_TYPE_JSON "application/json"
+#define HTTP_HEADER_CONTENT_TYPE_TEXT "text/plain"
 #define HTTP_HEADER_CONTENT_LENGTH "Content-Length"
 #define HTTP_HEADER_CONNECTION "Connection"
 #define HTTP_HEADER_CONNECTION_CLOSE "close"
+
+#define HTTP_BODY_NO_CONTENT "No Content"
 
 namespace fastrest
 {
@@ -43,12 +48,17 @@ namespace fastrest
   {
   public:
 
-    http_session(boost::asio::ip::tcp::socket s, threadpool& tpool);
+    http_session(boost::asio::ip::tcp::socket s, threadpool& tpool, dispatcher& dispatcher);
     void start();
     
     void write_http_response(unsigned int code, const char* json_content = NULL, size_t json_content_size = 0);
     
-    const std::string& get_uri()
+    inline const std::string& get_method()
+    {
+      return _method;
+    }
+
+    inline const std::string& get_uri()
     {
       return _uri;
     }
@@ -60,6 +70,7 @@ namespace fastrest
 
     boost::asio::ip::tcp::socket _socket;
     threadpool& _tpool;
+    dispatcher& _dispatcher;
     boost::asio::streambuf _buffer_request;
     boost::asio::streambuf _buffer_response;
     
@@ -73,7 +84,7 @@ namespace fastrest
   {
   public:
 
-    http_server(boost::asio::io_service& io_service, boost::asio::ip::tcp::endpoint& endpoint, threadpool& tpool);
+    http_server(boost::asio::io_service& io_service, boost::asio::ip::tcp::endpoint& endpoint, threadpool& tpool, dispatcher& dispatcher);
 
   protected:
 
@@ -82,6 +93,7 @@ namespace fastrest
     boost::asio::ip::tcp::acceptor _acceptor;
     boost::asio::ip::tcp::socket _socket;
     threadpool& _tpool;
+    dispatcher& _dispatcher;
   } ;
 
 }

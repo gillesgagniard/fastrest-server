@@ -5,7 +5,7 @@ Dependencies
 ------------
 
 * autotools and libtool
-* Various Boost Libraries
+* Boost Libraries
 
 Build instructions
 ------------------

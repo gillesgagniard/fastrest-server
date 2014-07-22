@@ -1,13 +1,13 @@
 /* 
- * File:   http_server.cpp
+ * File:   http.cpp
  * Author: gilles
  * 
  * Created on 9 mars 2014, 23:40
  */
 
-#include "http_server.hpp"
+#include "http.hpp"
 #include "logutils.hpp"
-#include "http_action.hpp"
+#include "dispatcher.hpp"
 #include "threadpool.hpp"
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/read.hpp>
@@ -16,9 +16,10 @@
 namespace fastrest
 {
   
-  http_session::http_session(boost::asio::ip::tcp::socket s, threadpool& tpool) : 
+  http_session::http_session(boost::asio::ip::tcp::socket s, threadpool& tpool, dispatcher& dispatcher) :
           _socket(std::move(s)),
           _tpool(tpool),
+          _dispatcher(dispatcher),
           _connection_close(false),
           _buffer_request(1024*1024), _buffer_response(1024*1024) // preallocate memory
   {
@@ -120,19 +121,19 @@ namespace fastrest
         return (size_t)0; // terminate ...
       }
     },
-    [this, self, body_length](boost::system::error_code ec, std::size_t length) { // callback
+    [self, body_length](boost::system::error_code ec, std::size_t length) { // callback
       if (!ec)
       {
-        std::string body(boost::asio::buffer_cast<const char*>(_buffer_request.data()));
-        _buffer_request.consume(body_length); // consume the body
+        std::string body(boost::asio::buffer_cast<const char*>(self->_buffer_request.data()));
+        self->_buffer_request.consume(body_length); // consume the body
 
         LOG_DEBUG << "body \"" << body << "\"";
 
-        _tpool.run_task([self, body]() {http_action::execute(self, std::move(body));});
+        self->_tpool.run_task([self, body]() {self->_dispatcher.execute(self, std::move(body));});
  
-        if (!_connection_close)
+        if (!self->_connection_close)
         {
-          read_http_header();
+          self->read_http_header();
         }
       }
       else
@@ -163,17 +164,18 @@ namespace fastrest
     }
     
     std::ostream response(&_buffer_response);
-    response << HTTP_VERSION_11 " " << code << " " << reason << "\r\n";
+    response << HTTP_VERSION_11 " " << code << " " << reason << HTTP_DELIMITER;
     if (json_content && json_content_size)
     {
-      response << HTTP_HEADER_CONTENT_TYPE ": " HTTP_HEADER_CONTENT_TYPE_JSON "\r\n" HTTP_HEADER_CONTENT_LENGTH ": " << json_content_size << HTTP_HEADER_END;
+      response << HTTP_HEADER_CONTENT_TYPE ": " HTTP_HEADER_CONTENT_TYPE_JSON HTTP_DELIMITER HTTP_HEADER_CONTENT_LENGTH ": " << json_content_size << HTTP_HEADER_END;
       response << json_content; // put content
     }
     else
     {
-      response << "\r\n"; // simply mark the end of headers
+      response << HTTP_HEADER_CONTENT_TYPE ": " HTTP_HEADER_CONTENT_TYPE_TEXT HTTP_DELIMITER HTTP_HEADER_CONTENT_LENGTH ": " << sizeof(HTTP_BODY_NO_CONTENT) - 1 << HTTP_HEADER_END;
+      response << HTTP_BODY_NO_CONTENT;
     }
-    boost::asio::async_write(_socket, _buffer_response, [this, self](boost::system::error_code ec, std::size_t length)
+    boost::asio::async_write(_socket, _buffer_response, [self](boost::system::error_code ec, std::size_t length)
     {
       if (ec)
       {
@@ -186,10 +188,11 @@ namespace fastrest
     });
   }
   
-  http_server::http_server(boost::asio::io_service& io_service, boost::asio::ip::tcp::endpoint& endpoint, threadpool& tpool) :
+  http_server::http_server(boost::asio::io_service& io_service, boost::asio::ip::tcp::endpoint& endpoint, threadpool& tpool, dispatcher& dispatcher) :
       _acceptor(io_service, endpoint),
       _socket(io_service),
-      _tpool(tpool)
+      _tpool(tpool),
+      _dispatcher(dispatcher)
   {
     accept();
   }
@@ -201,7 +204,7 @@ namespace fastrest
     {
       if (!ec)
       {
-        std::make_shared<http_session>(std::move(_socket), _tpool)->start();
+        std::make_shared<http_session>(std::move(_socket), _tpool, _dispatcher)->start();
         // after move, _socket is ready to be used again as it is as freshly constructed !
       } else
       {
