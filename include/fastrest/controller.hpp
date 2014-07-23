@@ -30,6 +30,7 @@ namespace fastrest
   {
     friend class dispatcher;
     friend class server;
+
   public:
     virtual void execute() =0;
     virtual ~controller();
@@ -41,11 +42,11 @@ namespace fastrest
       return _request_body;
     }
 
-    void write_response(unsigned int code, const char* data, size_t data_size);
+    void write_response_ok(const char* data = NULL, size_t data_size = 0);
+    void write_response_not_found();
+    void write_response_bad_request();
 
   protected:
-
-
     typedef controller*(*create_controller_t)();
 
     template <class CONTROLLER>
@@ -55,6 +56,8 @@ namespace fastrest
     }
 
   private:
+    void write_response(unsigned int code, const char* data = NULL, size_t data_size = 0);
+
     std::string _request_body;
     std::shared_ptr<http_session> _http_session;
   };

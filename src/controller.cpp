@@ -32,6 +32,21 @@ namespace fastrest
     _http_session->write_http_response(code, data, data_size);
   }
 
+  void controller::write_response_ok(const char* data, size_t data_size)
+  {
+    write_response(HTTP_CODE_OK, data, data_size);
+  }
+
+  void controller::write_response_not_found()
+  {
+    write_response(HTTP_CODE_NOT_FOUND);
+  }
+
+  void controller::write_response_bad_request()
+  {
+    write_response(HTTP_CODE_BAD_REQUEST);
+  }
+
   const std::string& controller::get_method()
   {
     return _http_session->get_method();

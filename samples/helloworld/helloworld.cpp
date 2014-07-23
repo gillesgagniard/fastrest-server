@@ -27,7 +27,7 @@ class helloworld_controller : public fastrest::controller
   {
     std::ostringstream out;
     out << "Hello World ! method=" << get_method() << " uri=" << get_uri();
-    write_response(200, out.str().c_str(), out.str().length());
+    write_response_ok(out.str().c_str(), out.str().length());
   }
 };
 
