@@ -24,6 +24,7 @@
 #include <boost/asio/read_until.hpp>
 #include <boost/asio/read.hpp>
 #include <boost/asio/write.hpp>
+#include <stdexcept>
 
 namespace fastrest
 {
@@ -32,6 +33,7 @@ namespace fastrest
           _socket(std::move(s)),
           _tpool(tpool),
           _dispatcher(dispatcher),
+          _content_type(CONTENT_TYPE_OTHER),
           _connection_close(false),
           _buffer_request(1024*1024), _buffer_response(1024*1024) // preallocate memory
   {
@@ -52,7 +54,6 @@ namespace fastrest
       if (!ec)
       {
         size_t content_length = 0;
-//        bool content_type_json = false;
         
         std::istream is(&_buffer_request);
         std::string line;
@@ -90,6 +91,11 @@ namespace fastrest
           }
           line[pos_separator] = 0; // put \0 in place of the : separator
           line[line.size() - 1] = 0; // put \0 in place of the \r at the end
+          size_t pos_separator_params = line.find("; ");
+          if (pos_separator_params != std::string::npos)
+          {
+            line[pos_separator_params] = 0; // put \0 in place of the ; separator
+          }
           char* attr_name = &line[0];
           char* attr_value = &line[pos_separator + 2];
           if (strncmp(attr_name, HTTP_HEADER_CONTENT_LENGTH, sizeof(HTTP_HEADER_CONTENT_LENGTH)) == 0)
@@ -103,12 +109,27 @@ namespace fastrest
             _connection_close = true;
             LOG_DEBUG << "connection close header";
           }
-//          else if (strncmp(attr_name, HTTP_HEADER_CONTENT_TYPE, sizeof(HTTP_HEADER_CONTENT_TYPE)) == 0 &&
-//                   strncmp(attr_value, HTTP_HEADER_CONTENT_TYPE_JSON, sizeof(HTTP_HEADER_CONTENT_TYPE_JSON)) == 0)
-//          {
-//            content_type_json = true;
-//            LOG_DEBUG << "content-type json ok";
-//          }
+          else if (strncmp(attr_name, HTTP_HEADER_CONTENT_TYPE, sizeof(HTTP_HEADER_CONTENT_TYPE)) == 0)
+          {
+            LOG_DEBUG << "content type raw " << attr_value;
+            if (strncmp(attr_value, HTTP_HEADER_CONTENT_TYPE_JSON, sizeof(HTTP_HEADER_CONTENT_TYPE_JSON)) == 0)
+            {
+              _content_type = CONTENT_TYPE_JSON;
+            }
+            else if (strncmp(attr_value, HTTP_HEADER_CONTENT_TYPE_TEXT, sizeof(HTTP_HEADER_CONTENT_TYPE_TEXT)) == 0)
+            {
+              _content_type = CONTENT_TYPE_TEXT;
+            }
+            else if (strncmp(attr_value, HTTP_HEADER_CONTENT_TYPE_XML, sizeof(HTTP_HEADER_CONTENT_TYPE_XML)) == 0)
+            {
+              _content_type = CONTENT_TYPE_XML;
+            }
+            else
+            {
+              _content_type = CONTENT_TYPE_OTHER;
+            }
+            LOG_DEBUG << "body content type " << _content_type;
+          }
         }
         
         read_http_body(content_length);
@@ -136,10 +157,10 @@ namespace fastrest
     [self, body_length](boost::system::error_code ec, std::size_t length) { // callback
       if (!ec)
       {
-        std::string body(boost::asio::buffer_cast<const char*>(self->_buffer_request.data()));
+        std::string body(boost::asio::buffer_cast<const char*>(self->_buffer_request.data()), body_length);
         self->_buffer_request.consume(body_length); // consume the body
 
-        LOG_DEBUG << "body \"" << body << "\"";
+        LOG_DEBUG << "body : " << body;
 
         self->_tpool.run_task([self, body]() {self->_dispatcher.execute(self, std::move(body));});
  
@@ -155,7 +176,7 @@ namespace fastrest
     });
   }
   
-  void http_session::write_http_response(unsigned int code, const char* json_content, size_t json_content_size)
+  void http_session::write_http_response(unsigned int code, ContentType_t content_type, const char* data, size_t data_size)
   {    
     auto self = shared_from_this();
     
@@ -167,6 +188,9 @@ namespace fastrest
     case HTTP_CODE_BAD_REQUEST:
       reason = HTTP_REASON_BAD_REQUEST;
       break;
+    case HTTP_CODE_METHOD_NOT_ALLOWED:
+      reason = HTTP_REASON_METHOD_NOT_ALLOWED;
+      break;
     case HTTP_CODE_LENGTH_REQUIRED:
       reason = HTTP_REASON_LENGTH_REQUIRED;
       break;
@@ -177,15 +201,32 @@ namespace fastrest
     
     std::ostream response(&_buffer_response);
     response << HTTP_VERSION_11 " " << code << " " << reason << HTTP_DELIMITER;
-    if (json_content && json_content_size)
+    if (data && data_size)
     {
-      response << HTTP_HEADER_CONTENT_TYPE ": " HTTP_HEADER_CONTENT_TYPE_JSON HTTP_DELIMITER HTTP_HEADER_CONTENT_LENGTH ": " << json_content_size << HTTP_HEADER_END;
-      response << json_content; // put content
+      LOG_DEBUG << "reply data content type " << content_type << " data " << data;
+      switch (content_type)
+      {
+      case CONTENT_TYPE_JSON:
+        response << HTTP_HEADER_CONTENT_TYPE ": " HTTP_HEADER_CONTENT_TYPE_JSON HTTP_DELIMITER HTTP_HEADER_CONTENT_LENGTH ": " << data_size << HTTP_HEADER_END;
+        break;
+      case CONTENT_TYPE_TEXT:
+        response << HTTP_HEADER_CONTENT_TYPE ": " HTTP_HEADER_CONTENT_TYPE_TEXT HTTP_DELIMITER HTTP_HEADER_CONTENT_LENGTH ": " << data_size << HTTP_HEADER_END;
+        break;
+      case CONTENT_TYPE_XML:
+        response << HTTP_HEADER_CONTENT_TYPE ": " HTTP_HEADER_CONTENT_TYPE_XML HTTP_DELIMITER HTTP_HEADER_CONTENT_LENGTH ": " << data_size << HTTP_HEADER_END;
+        break;
+      default:
+        LOG_ERROR << "unsupported content type";
+        throw std::invalid_argument("unsupported content type");
+      }
+      response << data;
     }
     else
     {
-      response << HTTP_HEADER_CONTENT_TYPE ": " HTTP_HEADER_CONTENT_TYPE_TEXT HTTP_DELIMITER HTTP_HEADER_CONTENT_LENGTH ": " << sizeof(HTTP_BODY_NO_CONTENT) - 1 << HTTP_HEADER_END;
-      response << HTTP_BODY_NO_CONTENT;
+      LOG_DEBUG << "reply no data";
+      //response << HTTP_HEADER_CONTENT_TYPE ": " HTTP_HEADER_CONTENT_TYPE_TEXT HTTP_DELIMITER HTTP_HEADER_CONTENT_LENGTH ": " << sizeof(HTTP_BODY_NO_CONTENT) - 1 << HTTP_HEADER_END;
+      //response << HTTP_BODY_NO_CONTENT;
+      response << HTTP_HEADER_CONTENT_TYPE ": " HTTP_HEADER_CONTENT_TYPE_TEXT HTTP_DELIMITER HTTP_HEADER_CONTENT_LENGTH ": " << 0 << HTTP_HEADER_END;
     }
     boost::asio::async_write(_socket, _buffer_response, [self](boost::system::error_code ec, std::size_t length)
     {
@@ -217,7 +258,7 @@ namespace fastrest
       if (!ec)
       {
         std::make_shared<http_session>(std::move(_socket), _tpool, _dispatcher)->start();
-        // after move, _socket is ready to be used again as it is as freshly constructed !
+        // after move, _socket is ready to be used again as if it were freshly constructed !
       } else
       {
         LOG_ERROR << "error " << ec;

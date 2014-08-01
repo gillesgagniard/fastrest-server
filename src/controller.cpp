@@ -19,6 +19,8 @@
 
 #include <fastrest/controller.hpp>
 #include "http.hpp"
+#include <rapidjson/writer.h>
+#include <rapidjson/stringbuffer.h>
 
 namespace fastrest
 {
@@ -27,33 +29,60 @@ namespace fastrest
 
   }
 
-  void controller::write_response(unsigned int code, const char* data, size_t data_size)
-  {
-    _http_session->write_http_response(code, data, data_size);
-  }
-
   void controller::write_response_ok(const char* data, size_t data_size)
   {
-    write_response(HTTP_CODE_OK, data, data_size);
+    _http_session->write_http_response(HTTP_CODE_OK, http_session::CONTENT_TYPE_TEXT, data, data_size);
+  }
+
+  void controller::write_response_ok(const rapidjson::Document& data)
+  {
+    rapidjson::StringBuffer reply;
+    rapidjson::Writer<rapidjson::StringBuffer> reply_writer(reply);
+    data.Accept(reply_writer);
+    _http_session->write_http_response(HTTP_CODE_OK, http_session::CONTENT_TYPE_JSON, reply.GetString(), reply.Size());
   }
 
   void controller::write_response_not_found()
   {
-    write_response(HTTP_CODE_NOT_FOUND);
+    _http_session->write_http_response(HTTP_CODE_NOT_FOUND);
   }
 
   void controller::write_response_bad_request()
   {
-    write_response(HTTP_CODE_BAD_REQUEST);
+    _http_session->write_http_response(HTTP_CODE_BAD_REQUEST);
   }
 
-  const std::string& controller::get_method()
+  void controller::write_response_method_not_allowed()
+  {
+    _http_session->write_http_response(HTTP_CODE_METHOD_NOT_ALLOWED);
+  }
+
+  const std::string& controller::get_method() const
   {
     return _http_session->get_method();
   }
 
-  const std::string& controller::get_uri()
+  const std::string& controller::get_uri() const
   {
     return _http_session->get_uri();
+  }
+
+  bool controller::is_body_json() const
+  {
+    return _http_session->get_content_type() == http_session::CONTENT_TYPE_JSON;
+  }
+
+  const rapidjson::Document& controller::get_body_document()
+  {
+    if (!is_body_json())
+    {
+      throw controller_bad_content_type();
+    }
+    if (_request_body_document.IsNull())
+    {
+      // TODO use ParseInsitu instead ?
+      _request_body_document.Parse<rapidjson::kParseDefaultFlags>(get_body().c_str());
+    }
+    return _request_body_document;
   }
 }

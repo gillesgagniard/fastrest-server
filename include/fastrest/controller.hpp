@@ -21,6 +21,7 @@
 
 #include <string>
 #include <memory>
+#include <rapidjson/document.h>
 
 namespace fastrest
 {
@@ -35,16 +36,21 @@ namespace fastrest
     virtual void execute() =0;
     virtual ~controller();
 
-    const std::string& get_method();
-    const std::string& get_uri();
-    inline const std::string& get_body()
+    const std::string& get_method() const;
+    const std::string& get_uri() const;
+    inline const std::string& get_body() const
     {
       return _request_body;
     }
 
+    bool is_body_json() const;
+    const rapidjson::Document& get_body_document();
+
     void write_response_ok(const char* data = NULL, size_t data_size = 0);
+    void write_response_ok(const rapidjson::Document& data);
     void write_response_not_found();
     void write_response_bad_request();
+    void write_response_method_not_allowed();
 
   protected:
     typedef controller*(*create_controller_t)();
@@ -56,9 +62,14 @@ namespace fastrest
     }
 
   private:
-    void write_response(unsigned int code, const char* data = NULL, size_t data_size = 0);
-
     std::string _request_body;
     std::shared_ptr<http_session> _http_session;
+    rapidjson::Document _request_body_document;
   };
+
+  class controller_error : public std::exception
+  {};
+
+  class controller_bad_content_type : public controller_error
+  {};
 }

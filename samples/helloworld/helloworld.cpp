@@ -19,15 +19,36 @@
 
 #include <fastrest/server.hpp>
 #include <fastrest/controller.hpp>
-#include <sstream>
 
 class helloworld_controller : public fastrest::controller
 {
   void execute()
   {
-    std::ostringstream out;
-    out << "Hello World ! method=" << get_method() << " uri=" << get_uri();
-    write_response_ok(out.str().c_str(), out.str().length());
+    // only accept POST with a JSON document
+    if (get_method() != "POST" || !is_body_json())
+    {
+      write_response_method_not_allowed();
+      return;
+    }
+
+    // get fellow name
+    const rapidjson::Document& body = get_body_document();
+    std::string name;
+    if (body.IsObject() && body.HasMember("name"))
+    {
+      name = body["name"].GetString();
+    }
+    else
+    {
+      write_response_bad_request();
+      return;
+    }
+
+    // reply to him politely
+    rapidjson::Document reply;
+    reply.SetObject();
+    reply.AddMember("hello", name.c_str(), reply.GetAllocator());
+    write_response_ok(reply);
   }
 };
 

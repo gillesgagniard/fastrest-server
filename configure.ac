@@ -8,6 +8,8 @@ AC_LANG([C++])
 AC_PROG_CXX
 AC_PROG_LIBTOOL
 AC_SUBST([AM_CXXFLAGS], [-std=c++11])
+AC_PROG_RANLIB
+AC_C_INLINE
 
 # check for boost
 

@@ -12,3 +12,5 @@
 /Makefile.in
 /missing
 /aclocal.m4
+/configure.scan
+/autoscan.log

@@ -35,6 +35,9 @@
 #define HTTP_CODE_NOT_FOUND 404
 #define HTTP_REASON_NOT_FOUND "Not Found"
 
+#define HTTP_CODE_METHOD_NOT_ALLOWED 405
+#define HTTP_REASON_METHOD_NOT_ALLOWED "Method Not Allowed"
+
 #define HTTP_CODE_LENGTH_REQUIRED 411
 #define HTTP_REASON_LENGTH_REQUIRED "Length Required"
 
@@ -45,6 +48,7 @@
 #define HTTP_HEADER_CONTENT_TYPE "Content-Type"
 #define HTTP_HEADER_CONTENT_TYPE_JSON "application/json"
 #define HTTP_HEADER_CONTENT_TYPE_TEXT "text/plain"
+#define HTTP_HEADER_CONTENT_TYPE_XML "application/xml"
 #define HTTP_HEADER_CONTENT_LENGTH "Content-Length"
 #define HTTP_HEADER_CONNECTION "Connection"
 #define HTTP_HEADER_CONNECTION_CLOSE "close"
@@ -60,10 +64,18 @@ namespace fastrest
   {
   public:
 
+    enum ContentType_t
+    {
+      CONTENT_TYPE_TEXT = 1000,
+      CONTENT_TYPE_JSON = 1001,
+      CONTENT_TYPE_XML = 1002,
+      CONTENT_TYPE_OTHER = 2000
+    };
+
     http_session(boost::asio::ip::tcp::socket s, threadpool& tpool, dispatcher& dispatcher);
     void start();
     
-    void write_http_response(unsigned int code, const char* json_content = NULL, size_t json_content_size = 0);
+    void write_http_response(unsigned int code, ContentType_t content_type = CONTENT_TYPE_OTHER, const char* data = NULL, size_t data_size = 0);
     
     inline const std::string& get_method()
     {
@@ -73,6 +85,11 @@ namespace fastrest
     inline const std::string& get_uri()
     {
       return _uri;
+    }
+
+    inline ContentType_t get_content_type()
+    {
+      return _content_type;
     }
 
   protected:
@@ -89,6 +106,7 @@ namespace fastrest
     std::string _method;
     std::string _uri;
     std::string _version;
+    ContentType_t _content_type;
     bool _connection_close;
   } ;
 
