@@ -21,7 +21,7 @@ External components
 fastREST internally uses the following components :
 
 boost.m4
-https://github.com/etiam/boost.m4
+https://github.com/tsuna/boost.m4
 
 rapidjson 0.11
 https://code.google.com/p/rapidjson/
